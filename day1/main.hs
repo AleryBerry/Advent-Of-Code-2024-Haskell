@@ -11,10 +11,9 @@ split (x : y : xs) = bimap (x :) (y :) (split xs)
 
 numberScore :: Int -> [Int] -> Int
 numberScore x [] = 0
-numberScore x (y : ys) =
-  if x == y
-    then x + numberScore x ys
-    else 0 + numberScore x ys
+numberScore x (y : ys)
+  | x == y = x + numberScore x ys
+  | otherwise = 0 + numberScore x ys
 
 similarityScore :: ([Int], [Int]) -> Int
 similarityScore (x, y) = sum $ map (`numberScore` y) x
