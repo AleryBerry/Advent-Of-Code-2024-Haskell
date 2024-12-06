@@ -1,7 +1,6 @@
 import Control.Exception (IOException)
 import Control.Exception.Base (catch)
 import Data.Either (fromLeft, fromRight)
-import Debug.Trace (trace)
 import GHC.Settings.Utils (maybeRead)
 
 type Rule = (String, String)

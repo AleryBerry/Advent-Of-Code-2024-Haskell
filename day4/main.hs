@@ -2,7 +2,6 @@ import Control.Exception (IOException)
 import Control.Exception.Base (catch)
 import Data.List (isPrefixOf)
 import Data.Maybe (fromMaybe, isJust)
-import Debug.Trace (trace)
 
 data Coords = Coords {x :: Int, y :: Int}
   deriving (Eq, Show)
