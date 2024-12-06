@@ -1,7 +1,6 @@
 import Control.Exception (IOException)
 import Control.Exception.Base (catch)
-import Data.Either (fromLeft, fromRight, isLeft, isRight)
-import Data.Maybe (mapMaybe)
+import Data.Either (fromLeft, fromRight)
 import Debug.Trace (trace)
 import GHC.Settings.Utils (maybeRead)
 
@@ -22,7 +21,7 @@ isPageAfter page report = page `elem` report
 checkPage :: Page -> [Page] -> [Rule] -> Bool
 checkPage page report rules = all (\pageBefore -> pageBefore `isPageAfter` drop 1 (dropWhile (/= page) report)) (pagesBeforeFromRules page rules)
 
-fixReport :: Int -> [Page] -> [(Page, Page)] -> Report
+fixReport :: Int -> [Page] -> [Rule] -> Report
 fixReport idx report rules
   | idx >= (length report - 1) = fixReport 0 report rules
   | all (\page -> checkPage page report filteredRules) report = report
