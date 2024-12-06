@@ -43,6 +43,7 @@ iterateText idx start func text
     xCoord = idx `mod` length (head text)
     yCoord = idx `div` length (head text)
 
+main :: IO ()
 main = do
   file <- catch (readFile "input.txt") ((\_ -> putStrLn "Failed reading file." >> return "") :: IOException -> IO String)
   print $ iterateText 0 'X' (findAllOcurrences directions "XMAS") (lines file) -- Part 1

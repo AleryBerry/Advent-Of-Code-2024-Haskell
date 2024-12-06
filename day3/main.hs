@@ -42,6 +42,7 @@ findMuls _ text
   | "mul(" `isPrefixOf` text = findMuls (Just "mul(") (drop 4 text)
   | otherwise = findMuls (Just "") (drop 1 text)
 
+main :: IO ()
 main = do
   file <- catch (readFile "input.txt") ((\_ -> putStrLn "Failed reading file." >> return "") :: IOException -> IO String)
   print $ foldl (\acc x -> acc + (first x * second x)) 0 <$> findMuls (Just "") file

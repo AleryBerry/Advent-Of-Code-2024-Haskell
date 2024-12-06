@@ -19,6 +19,7 @@ numberScore x (y : ys) =
 similarityScore :: ([Int], [Int]) -> Int
 similarityScore (x, y) = sum $ map (`numberScore` y) x
 
+main :: IO ()
 main = do
   file <- catch (readFile "input.txt") ((\_ -> putStrLn "Failed reading file." >> return "") :: IOException -> IO String)
   let numbers = mapM maybeRead (words file)

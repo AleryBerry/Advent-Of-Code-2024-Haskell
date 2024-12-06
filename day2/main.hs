@@ -26,6 +26,7 @@ countTruth :: [Bool] -> Int
 countTruth [] = 0
 countTruth (x : xs) = if x then 1 + countTruth xs else 0 + countTruth xs
 
+main :: IO ()
 main = do
   file <- catch (readFile "input.txt") ((\_ -> putStrLn "Failed reading file." >> return "") :: IOException -> IO String)
   let reports = mapM (mapM (maybeRead :: String -> Maybe Int)) <$> map words . lines $ file
