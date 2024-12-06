@@ -25,13 +25,13 @@ fixReport :: Int -> [Page] -> [Rule] -> Report
 fixReport idx report rules
   | idx >= (length report - 1) = fixReport 0 report rules
   | all (\page -> checkPage page report filteredRules) report = report
-  | checkPage (report !! idx) movedReport filteredRules = fixReport (idx + 1) movedReport rules
-  | otherwise = fixReport idx movedReport rules
+  | checkPage (report !! idx) newReport filteredRules = fixReport (idx + 1) newReport rules
+  | otherwise = fixReport idx newReport rules
   where
     filteredRules = filter (\(a, b) -> a `elem` report && b `elem` report) rules
     ts = drop (idx + 2) report
     hs = take idx report
-    movedReport = hs ++ [report !! (idx + 1), report !! idx] ++ ts
+    newReport = hs ++ [report !! (idx + 1), report !! idx] ++ ts
 
 checkReport :: Report -> [Rule] -> Either Report Report
 checkReport report rules
