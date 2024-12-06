@@ -6,10 +6,15 @@ import Data.Map qualified as Map
 import Data.Maybe (fromMaybe, isJust, isNothing)
 import Data.Set qualified as Set
 
-type Space = Map.Map Position Square
-
-data State = State Space (Set.Set Position) (Maybe (Position, Direction))
+data State = State World VisitedPositions (Maybe GuardState)
   deriving (Show)
+
+type World = Map.Map Position Square
+
+type VisitedPositions = Set.Set Position
+
+data GuardState = GuardState {pos :: Position, dir :: Direction}
+  deriving (Eq, Show)
 
 data Square = Empty | Guard Direction | Obstacle
   deriving (Eq, Show)
@@ -26,61 +31,61 @@ instance Ord Position where
       then a `compare` c
       else b `compare` d
 
-data Direction = Up | Down | Right | Left
+data Direction = North | South | East | West
   deriving (Eq, Show)
-
-readDirection :: Direction -> Position
-readDirection Main.Up = Position {x = 0, y = -1}
-readDirection Main.Down = Position {x = 0, y = 1}
-readDirection Main.Left = Position {x = -1, y = 0}
-readDirection Main.Right = Position {x = 1, y = 0}
-
-turn90Degrees :: Direction -> Direction
-turn90Degrees Main.Up = Main.Right
-turn90Degrees Main.Right = Main.Down
-turn90Degrees Main.Down = Main.Left
-turn90Degrees Main.Left = Main.Up
 
 readSquare :: Char -> Maybe Square
 readSquare '.' = Just Empty
-readSquare '^' = Just $ Guard Main.Up
-readSquare '>' = Just $ Guard Main.Right
-readSquare '<' = Just $ Guard Main.Left
-readSquare 'v' = Just $ Guard Main.Down
+readSquare '^' = Just $ Guard North
+readSquare '>' = Just $ Guard East
+readSquare '<' = Just $ Guard West
+readSquare 'v' = Just $ Guard South
 readSquare '#' = Just Obstacle
-readSquare a = Nothing
+readSquare _ = Nothing
 
-readSpace :: [String] -> Space
-readSpace text = Map.mapMaybe id $ Map.fromList info
+readWorld :: [String] -> World
+readWorld text = Map.mapMaybe id $ Map.fromList info
   where
     info = zipWith (\x a -> (Position {x = x `mod` width, y = x `div` width}, a)) [0 ..] $ map readSquare $ fold text
     width = length $ head text
 
-searchGuard :: Space -> Maybe (Position, Direction)
-searchGuard space
-  | (not . null) list = Just $ head list
+readDirection :: Direction -> Position
+readDirection North = Position {x = 0, y = -1}
+readDirection South = Position {x = 0, y = 1}
+readDirection West = Position {x = -1, y = 0}
+readDirection East = Position {x = 1, y = 0}
+
+turn90Degrees :: GuardState -> GuardState
+turn90Degrees (GuardState pos North) = GuardState pos East
+turn90Degrees (GuardState pos East) = GuardState pos South
+turn90Degrees (GuardState pos South) = GuardState pos West
+turn90Degrees (GuardState pos West) = GuardState pos North
+
+searchGuard :: World -> Maybe GuardState
+searchGuard world
+  | (not . null) list = Just $ (\(a, b) -> GuardState {pos = a, dir = b}) $ head list
   | otherwise = Nothing
   where
-    list = (\(a, b) -> (a, fromMaybe Main.Up (isGuard b))) <$> filter (\(a, b) -> isJust $ isGuard b) (Map.toList space)
+    list = (\(a, b) -> (a, fromMaybe North (isGuard b))) <$> filter (\(a, b) -> isJust $ isGuard b) (Map.toList world)
     isGuard (Guard dir) = Just dir
     isGuard _ = Nothing
 
-moveGuard :: State -> Maybe State
-moveGuard (State _ _ Nothing) = Nothing
-moveGuard (State space prev (Just guard))
-  | isNothing (Map.lookup newPosition space) = Just $ State space (Set.insert (fst guard) prev) (Just guard)
-  | isObstacle (Map.lookup newPosition space) = moveGuard $ State space (Set.insert (fst guard) prev) (Just $ Data.Bifunctor.second turn90Degrees guard)
-  | otherwise = moveGuard $ State newSpace (Set.insert (fst guard) prev) (Just (newPosition, snd guard))
+play :: State -> Maybe State
+play (State _ _ Nothing) = Nothing
+play (State world visitedPositions (Just guard))
+  | isNothing (Map.lookup newPosition world) = Just $ State world (Set.insert (pos guard) visitedPositions) (Just guard)
+  | isObstacle (Map.lookup newPosition world) = play $ State world (Set.insert (pos guard) visitedPositions) (Just $ turn90Degrees guard)
+  | otherwise = play $ State newWorld (Set.insert (pos guard) visitedPositions) (Just $ GuardState {pos = newPosition, dir = dir guard})
   where
-    newSpace = Map.insert newPosition (Guard (snd guard)) $ Map.insert (fst guard) Empty space
-    direction = readDirection $ snd guard
-    newPosition = fst guard <+> direction
+    newWorld = Map.insert newPosition (Guard (dir guard)) $ Map.insert (pos guard) Empty world
+    direction = readDirection $ dir guard
+    newPosition = pos guard <+> direction
     isObstacle (Just Obstacle) = True
     isObstacle _ = False
 
 main :: IO ()
 main = do
   file <- catch (readFile "input.txt") ((\_ -> putStrLn "Failed reading file." >> return "") :: IOException -> IO String)
-  let space = readSpace $ lines file
-  let (State e r y) = fromMaybe (State space Set.empty (searchGuard space)) $ moveGuard $ State space Set.empty (searchGuard space)
-  print $ length r
+  let world = readWorld $ lines file
+  let (State state visitedPositions guard) = fromMaybe (State world Set.empty (searchGuard world)) $ play $ State world Set.empty (searchGuard world)
+  print $ length visitedPositions
