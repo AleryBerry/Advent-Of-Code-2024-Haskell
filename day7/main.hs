@@ -18,12 +18,12 @@ toInt = fromMaybe 0 . (maybeRead :: String -> Maybe Int)
 
 checkEquations :: (Int, [Int]) -> Maybe Int
 checkEquations (result, numbers)
-  | any ((==) result . operateEquation (head numbers)) equations = Just result
+  | any ((==) result . operateEquation) equations = Just result
   | otherwise = Nothing
   where
     operations = replicateM (length numbers) [(+), (*), \a b -> toInt $ show b ++ show a]
     equations = map (zipWith (\a b -> b a) (drop 1 numbers)) operations
-    operateEquation = foldl (\acc x -> x acc)
+    operateEquation = foldl (\acc x -> x acc) (head numbers)
 
 main :: IO ()
 main = do
