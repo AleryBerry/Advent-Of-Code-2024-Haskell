@@ -1,5 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
-
+import Control.Concurrent.STM (check)
 import Control.Exception (IOException)
 import Control.Exception.Base (catch)
 import Control.Monad (join)
@@ -8,7 +7,7 @@ import Data.Map qualified as M
 import Data.Maybe (isNothing)
 import Debug.Trace (trace)
 
-data Entity = Box | Robot | Wall
+data Entity = Box | Robot | Wall | BigBoxL | BigBoxR
   deriving (Show, Eq, Ord)
 
 type Position = (Int, Int)
@@ -19,7 +18,12 @@ charToEntity :: Char -> Maybe Entity
 charToEntity '#' = Just Wall
 charToEntity '@' = Just Robot
 charToEntity 'O' = Just Box
+charToEntity '[' = Just BigBoxL
+charToEntity ']' = Just BigBoxR
 charToEntity _ = Nothing
+
+parse :: [String] -> M.Map Position (Maybe Entity)
+parse file = M.fromList $ zipWith (\a b -> ((b `mod` (length . head $ file), b `div` (length . head $ file)), charToEntity a)) (concat file) [0 ..]
 
 move :: Char -> Position -> Position
 move '<' (x, y) = (x - 1, y)
@@ -28,40 +32,78 @@ move '^' (a, b) = (a, b - 1)
 move 'v' (a, b) = (a, b + 1)
 move _ p = p
 
-printState :: State -> [String]
-printState (a, p) = transpose $ ((\(a, b) -> convert b) <$>) <$> groupBy (\((x1, y1), b) ((x2, y2), d) -> y1 /= y2) (M.toList a)
+printState (a, p) = foldl1 (>>) $ print <$> transpose (((\(a, b) -> convert b) <$>) <$> groupBy (\((x1, y1), b) ((x2, y2), d) -> y1 /= y2) (M.toList a))
   where
     convert (Just Wall) = '#'
     convert (Just Robot) = '@'
     convert (Just Box) = 'O'
+    convert (Just BigBoxL) = '['
+    convert (Just BigBoxR) = ']'
     convert Nothing = '.'
 
-nextState :: State -> Char -> State
-nextState (state, currPos) direction
-  | Nothing <- checkPos = (moveRobot state, nextMove)
-  | Just Wall <- checkPos = (state, currPos)
-  | Just Box <- checkPos = if test /= state then (moveRobot test, nextMove) else (state, currPos)
-  | _ <- checkPos = (state, currPos)
+canMoveBigBox :: State -> Char -> Bool
+canMoveBigBox state@(positions, currPos) direction
+  | object `notElem` [Just BigBoxL, Just BigBoxR] = False
+  | (Nothing, Nothing) <- checkPos = True
+  | (Nothing, Just _) <- checkPos = canMoveBigBox (positions, nextMove siblingPos) direction
+  | (Just _, Nothing) <- checkPos = canMoveBigBox (positions, nextMove currPos) direction
+  | (_, Just Wall) <- checkPos = False
+  | (Just Wall, _) <- checkPos = False
+  | otherwise =
+      canMoveBigBox (positions, nextMove currPos) direction
+        && canMoveBigBox (positions, nextMove siblingPos) direction
   where
-    (test, _) = nextState (state, nextMove) direction
-    object = join $ M.lookup currPos state
-    moveRobot = M.insert currPos Nothing . M.insert nextMove object
-    checkPos = join $ M.lookup nextMove state
-    nextMove = move direction currPos
+    checkPos = (join $ M.lookup (nextMove currPos) positions, join $ M.lookup (nextMove siblingPos) positions)
+    sibling = join $ M.lookup siblingPos positions
+    siblingPos
+      | Just BigBoxL <- object = move '>' currPos
+      | Just BigBoxR <- object = move '<' currPos
+    object = join $ M.lookup currPos positions
+    nextMove = move direction
+
+nextState :: State -> Char -> State
+nextState state@(positions, currPos) direction
+  | Nothing <- checkPos = (moveObject (object, currPos) positions, nextMove currPos)
+  | Just Wall <- checkPos = state
+  | movingBigBox, boxPositions /= positions, (x, y) <- nextState (boxPositions, siblingPos) direction = (moveObject (object, currPos) x, nextMove currPos)
+  | checkPos `elem` [Just BigBoxL, Just BigBoxR] && movingVertical && not movingBigBox = state
+  | Just _ <- checkPos, boxPositions /= positions = (moveObject (object, currPos) boxPositions, nextMove currPos)
+  | otherwise = state
+  where
+    siblingPos
+      | Just BigBoxL <- checkPos = move '>' $ nextMove currPos
+      | Just BigBoxR <- checkPos = move '<' $ nextMove currPos
+      | _ <- checkPos = currPos
+    movingBigBox = movingVertical && canMoveBigBox (positions, nextMove currPos) direction
+    movingVertical = direction == 'v' || direction == '^'
+    (boxPositions, _) = nextState (positions, nextMove currPos) direction
+    object = join $ M.lookup currPos positions
+    checkPos = join $ M.lookup (nextMove currPos) positions
+    moveObject (obj, pos) = M.insert pos Nothing . M.insert (nextMove pos) obj
+    nextMove = move direction
+
+transform :: [String] -> [String]
+transform str = concatMap transform <$> str
+  where
+    transform '#' = "##"
+    transform 'O' = "[]"
+    transform '@' = "@."
+    transform '.' = ".."
 
 main :: IO ()
 main = do
   file <- catch (readFile "input.txt") ((\_ -> putStrLn "Failed reading file." >> return "") :: IOException -> IO String)
-  let movements = concat $ tail $ dropWhile (/= "") $ lines file
-      area = takeWhile (/= "") $ lines file
-      columns = length $ head area
-      rows = length area
-      getChar x = area !! (x `div` rows) !! (x `mod` columns)
-      state = M.fromList $ [((x `mod` columns, x `div` columns), charToEntity (getChar x)) | x <- [0 .. (length (concat area) - 1)]]
+
+  let state = parse $ takeWhile (/= "") $ lines file
+      movements = concat $ tail $ dropWhile (/= "") $ lines file
       robot = fst $ head $ filter (\(a, b) -> b == Just Robot) $ M.toList state
       result = foldl nextState (state, robot) movements
   let test = sum $ (\(a, b) -> a + 100 * b) . fst <$> filter (\(a, b) -> b == Just Box) (M.toList (fst result))
-  print test
-  mapM_ print $ printState result
 
--- foldl1 (>>) $ mapM_ print . printState . nextState (state, robot) <$> (movements)
+  let part2 = parse $ transform $ takeWhile (/= "") $ lines file
+      robot2 = fst $ head $ filter (\(a, b) -> b == Just Robot) $ M.toList part2
+  let as = scanl nextState (part2, robot2) movements
+  let aee = printState <$> as
+  print $ sum $ (\(a, b) -> a + 100 * b) . fst <$> filter (\(a, b) -> b == Just BigBoxL) (M.toList (fst $ last as))
+
+-- mapM_ print $ printState result
