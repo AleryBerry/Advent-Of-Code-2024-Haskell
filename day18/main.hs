@@ -45,11 +45,8 @@ move West (a, b) = (a - 1, b)
 neighbors :: Position -> [Position]
 neighbors pos = (\a -> a pos) <$> [move North, move South, move East, move West]
 
-mag :: Position -> Int
-mag (x, y) = float2Int $ 10000 * sqrt (int2Float ((x * x) + (y * y)))
-
 distance :: Position -> Position -> Int
-distance (x, y) (x2, y2) = mag (x - x2, y - y2)
+distance (x, y) (x2, y2) = abs (x - x2) + abs (y - y2)
 
 aStar :: Position -> Position -> Set Node -> Set Position -> Maybe (Set Node)
 aStar start goal costs unvisited
